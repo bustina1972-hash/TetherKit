@@ -1,0 +1,45 @@
+
+name: Build TetherKit x64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install cmake libusb pkg-config
+
+      - name: Build x86_64
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DTETHERKIT_BUILD_TESTS=OFF \
+            -DTETHERKIT_BUILD_BENCHMARKS=OFF
+          cmake --build build --parallel 4
+          file build/bin/tetherkit-cli
+
+      - name: Package CLI and libusb
+        run: |
+          mkdir -p package/lib
+          cp build/bin/tetherkit-cli package/
+          LIBUSB="$(brew --prefix libusb)/lib/libusb-1.0.0.dylib"
+          cp "$LIBUSB" package/lib/
+          install_name_tool -change \
+            "$LIBUSB" \
+            "@executable_path/lib/libusb-1.0.0.dylib" \
+            package/tetherkit-cli
+          otool -L package/tetherkit-cli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TetherKit-x86_64
+          path: package/
